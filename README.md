@@ -102,6 +102,43 @@ Wir bleiben bei einem Python-Stack, weil alles Nötige dort ausgereift ist und d
 
 Sparsame Minimalvariante, falls die Zeit knapp wird: `pandas`, `geopandas`, `scikit-learn`, `xgboost`, `shap`, `matplotlib`.
 
+### 5.1 Entwicklungsumgebung (Nix und devenv)
+
+Nix ist ein Paketmanager, der Software reproduzierbar und isoliert vom restlichen System installiert, und devenv beschreibt darauf aufbauend in `devenv.nix`, welche Programme und Python-Pakete für dieses Projekt bereitstehen. Dadurch arbeiten alle im Team mit exakt derselben Umgebung, und ein Befehl reicht für das komplette Setup.
+
+#### 5.1.1 Einmalig einrichten
+
+1. Nix installieren (unter Windows über WSL2):
+
+```bash
+   curl --proto '=https' --tlsv1.2 -sSf -L https://install.determinate.systems/nix | sh -s -- install
+```
+
+2. devenv installieren:
+
+```bash
+   nix profile install nixpkgs#devenv
+```
+
+3. Optional: `direnv` installieren, damit die Umgebung beim Betreten des Ordners automatisch geladen wird.
+
+#### 5.1.2 Starten
+
+```bash
+git clone git@github.com:leo248/dis-p2-crash-severity.git
+cd dis-p2-crash-severity
+direnv allow      # mit direnv
+devenv shell      # alternativ ohne direnv
+```
+
+Der erste Start dauert einige Minuten, weil alle Pakete geladen werden. Danach geht es aus dem Cache deutlich schneller.
+
+#### 5.1.3 Befehle in der Umgebung
+
+- `lab` startet JupyterLab.
+- `check` führt ruff und pytest aus.
+- `devenv update` aktualisiert die Paketstände. Nur nach Absprache ausführen und danach `devenv.lock` committen.
+
 ## 6. Roadmap
 
 Wochenangaben sind relativ. Die echten Termine tragen wir nach den Ankündigungen auf ELO ein. Die Meilensteine M1 bis M5 stammen aus der Vorlesung.
