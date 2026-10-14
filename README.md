@@ -172,8 +172,8 @@ The first start takes a few minutes because all packages are downloaded. After t
 
 #### 5.1.3 Commands in the environment
 
-- `lab` starts JupyterLab.
-- `check` runs ruff and pytest.
+- `jupiter lab` starts JupyterLab.
+- `ruff check` runs ruff and pytest.
 - `devenv update` updates the package versions. Run it only after agreement and commit `devenv.lock` afterwards.
 
 ## 6. Roadmap
