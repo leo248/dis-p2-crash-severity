@@ -1,209 +1,246 @@
 # P2: Machine Learning Classifier for Crash Severity with Explainable AI
 
-Projekt im Modul _Applied AI and Data Science for Sustainable Infrastructure and Urban Development (DIS)_, OTH Regensburg, Gruppe 2.
+Project in the module _Applied AI and Data Science for Sustainable Infrastructure and Urban Development (DIS)_, OTH Regensburg, Group 2.
 
-Status: Entwurf. Alle Schwellenwerte, Klassen und Termine sind Vorschläge, die wir mit der Datensatzdokumentation und den Vorgaben auf ELO abgleichen.
+Status: Draft. All thresholds, classes and dates are proposals that we will reconcile with the dataset documentation and the requirements on ELO.
 
 ---
 
-## 1. Worum es geht
+## 1. What this is about
 
-Wir klassifizieren die Verletzungsschwere eines bereits erfassten Verkehrsunfalls anhand von Merkmalen, die zum Zeitpunkt der Unfallaufnahme vorliegen. Grundlage sind die Unfallatlas-Daten der Statistischen Ämter, die wir per räumlichem Join mit OpenStreetMap-Kontext (Straßentyp, Knotenstruktur, Umgebung) anreichern. Nach der Validierung erklären wir die Modelle mit SHAP.
+We classify the injury severity of an already recorded road crash based on features that are available at the time the crash is recorded. The basis is the Unfallatlas data from the Statistical Offices of the Federation and the Länder, which we enrich with OpenStreetMap context (road type, junction structure, surroundings) via a spatial join. After validation we explain the models with SHAP.
 
-Abgrenzung: Das Modell sagt nicht vorher, ob ein Unfall passiert. Es modelliert die Schwere unter der Bedingung, dass ein Unfall erfasst wurde. SHAP-Ergebnisse beschreiben das Modellverhalten und sind keine Kausalaussagen.
+Scope: The model does not predict whether a crash will happen. It models severity on the condition that a crash was recorded. SHAP results describe model behavior and are not causal statements.
 
-## 2. Business Understanding (nach CRISP-DM, Vorlesung 2)
+## 2. Business Understanding (following CRISP-DM, lecture 2)
 
 ### 2.1 Business Objectives
 
-- **Hintergrund:** Verkehrssicherheit ist ein öffentliches Gut. Planende und Sicherheitsanalysten brauchen Evidenz, welche Unfall- und Umgebungsmerkmale mit schweren Verläufen zusammenhängen.
-- **Nutzer und Einsatz:** Ein Analyst oder Verkehrsplaner prüft Unfallbestände und möchte nachvollziehen, welche Konstellationen mit schweren Folgen einhergehen. Das Ergebnis unterstützt eine Prüfung, keine automatische Entscheidung.
-- **Ziel:** Validierte Klassenvorhersagen, nachvollziehbare Fehler und qualifizierte Erklärungen.
-- **Business Success:** Ein Analyst kann Vorhersagen, klassenweise Fehler und Erklärungen einsehen und einordnen. Nutzbares Ergebnis heißt nicht nachgewiesene Wirkung auf die Verkehrssicherheit; das wäre eine spätere Wirkungsstudie.
+- **Background:** Road safety is a public good. Planners and safety analysts need evidence on which crash and environment features are associated with severe outcomes.
+- **Users and use:** An analyst or transport planner reviews crash records and wants to understand which constellations go along with severe consequences. The result supports a review, not an automatic decision.
+- **Goal:** Validated class predictions, traceable errors and qualified explanations.
+- **Business Success:** An analyst can inspect and interpret predictions, class-wise errors and explanations. A usable result does not mean demonstrated impact on road safety; that would be a later impact study.
 
 ### 2.2 Situation
 
-| Aspekt                  | Inhalt                                                                                                                                                                                                      |
-| ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Ressourcen              | Unfallatlas-Daten, OSM-Extrakt, Rechenleistung der Teammitglieder, Betreuer-Termine                                                                                                                         |
-| Anforderung             | Reproduzierbare Pipeline, Vergleich dreier Modelle, klassenweiser Fehlerbericht, SHAP-Auswertung                                                                                                            |
-| Annahmen                | Die Schweregrade im Datensatz sind konsistent kodiert; der OSM-Stand ist hinreichend aktuell und die Koordinaten genau genug für den Join                                                                   |
-| Constraints             | Semesterumfang, keine eigene Datenerhebung, Datennutzungsvereinbarung beachten                                                                                                                              |
-| Risiko: seltene Schwere | Der Anteil schwerer Unfälle ist klein. Gegenmaßnahme: Klassengewichte, Schwellenwertanpassung, Metriken jenseits der Accuracy                                                                               |
-| Risiko: Leakage         | Felder, die die Schwere verraten, sind im Merkmalssatz. Gegenmaßnahme: Feature-Audit mit Dokumentation je Spalte                                                                                            |
-| Risiko: Join-Qualität   | Koordinaten sind in Unfallatlas gerastert bzw. ungenau. Gegenmaßnahme: Pufferradius dokumentieren, Sensitivitätstest                                                                                        |
-| Begriffe                | Zu definieren: schwer (z. B. Getötete plus Schwerverletzte), nicht schwer, Knotennähe, urbaner Kontext                                                                                                      |
-| Kosten und Nutzen       | Aufwand liegt vor allem in Datenaufbereitung und dem OSM-Join. Nutzen ist ein transparenter, wiederverwendbarer Workflow. Einfache Alternative: Logistic Regression allein, sie dient zugleich als Baseline |
+| Aspect              | Content                                                                                                                                                                                        |
+| ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Resources           | Unfallatlas data, OSM extract, computing power of the team members, supervisor appointments                                                                                                    |
+| Requirement         | Reproducible pipeline, comparison of three models, class-wise error report, SHAP analysis                                                                                                      |
+| Assumptions         | The severity levels in the dataset are coded consistently; the OSM snapshot is sufficiently up to date and the coordinates are accurate enough for the join                                    |
+| Constraints         | Scope of one semester, no own data collection, observe the data usage agreement                                                                                                                |
+| Risk: rare severity | The share of severe crashes is small. Countermeasure: class weights, threshold adjustment, metrics beyond accuracy                                                                             |
+| Risk: leakage       | Fields that reveal the severity are in the feature set. Countermeasure: feature audit with documentation per column                                                                            |
+| Risk: join quality  | Coordinates in the Unfallatlas are gridded or imprecise. Countermeasure: document the buffer radius, sensitivity test                                                                          |
+| Terms               | To define: severe (e.g. fatalities plus seriously injured), not severe, junction proximity, urban context                                                                                      |
+| Costs and benefits  | The effort lies mainly in data preparation and the OSM join. The benefit is a transparent, reusable workflow. Simple alternative: logistic regression alone, which also serves as the baseline |
 
 ### 2.3 Data Mining Goals
 
-- **Aufgabenformulierung:** Mit Unfallmerkmalen und OSM-Kontext klassifizieren wir die Schwere eines erfassten Unfalls und liefern Vorhersagen mit klassenweisen Fehlern.
-- **Einheit:** ein Unfallereignis (ein Datensatz).
-- **Target:** zunächst binär schwer gegen nicht schwer. Mehrklassig (getötet, schwerverletzt, leichtverletzt) nur, wenn die Klassengrößen es hergeben.
-- **Baselines:** Mehrheitsklassifikator und Logistic Regression.
-- **Kandidaten:** Random Forest und XGBoost.
-- **Technische Kriterien:** Macro-F1, Precision, Recall und Confusion Matrix, mit besonderem Blick auf den Recall der Klasse "schwer". Ergänzend sinnvoll: PR-AUC und Kalibrierung.
-- **Akzeptanzkriterium** = Maß + Referenz + Testsetting + begründetes Ziel. Beispiel: Severe-Recall und Macro-F1 schlagen die Logistic-Regression-Baseline auf einem zeitlich oder räumlich getrennten Testset. Konkrete Zielwerte legen wir fest, bevor wir die Endergebnisse sehen.
+- **Task formulation:** Using crash features and OSM context, we classify the severity of a recorded crash and deliver predictions with class-wise errors.
+- **Unit:** one crash event (one record).
+- **Target:** initially binary, severe vs. not severe. Multi-class (fatal, seriously injured, slightly injured) only if the class sizes allow it.
+- **Baselines:** majority-class classifier and logistic regression.
+- **Candidates:** Random Forest and XGBoost.
+- **Technical criteria:** Macro-F1, precision, recall and confusion matrix, with particular attention to the recall of the "severe" class. Also useful: PR-AUC and calibration.
+- **Acceptance criterion** = measure + reference + test setting + justified target. Example: Severe recall and macro-F1 beat the logistic regression baseline on a temporally or spatially separated test set. We set concrete target values before we see the final results.
 
-### 2.4 Projektplan
+### 2.4 Project Plan
 
-Siehe Abschnitt 6 (Roadmap) und Abschnitt 5 (Software).
+See section 6 (Roadmap) and section 5 (Software).
 
-## 3. Daten
+## 3. Data
 
-**Unfallatlas (primär).** Offene Daten der Statistischen Ämter des Bundes und der Länder, jahrgangsweise als CSV bzw. Geodaten. Erfasst sind Unfälle mit Personenschaden. Typische Felder laut Datensatzbeschreibung (bitte gegen die tatsächliche Dokumentation des verwendeten Jahrgangs prüfen):
+**Unfallatlas (primary).** Open data from the Statistical Offices of the Federation and the Länder, by year as CSV or as geodata. Crashes with personal injury are recorded. Typical fields according to the dataset description (please check against the actual documentation of the year used):
 
-- Verletzungsschwere (Kategorie, Basis des Targets)
-- Unfallart und Unfalltyp
-- Beteiligung (Rad, Pkw, Fußgänger, Kraftrad, Güterkraftfahrzeug, sonstige)
-- Lichtverhältnisse und Straßenzustand
-- Jahr, Monat, Wochentag, Stunde
-- Regionalschlüssel (Land, Kreis, Gemeinde)
-- Koordinaten (ETRS89 UTM und WGS84)
+- Injury severity (category, basis of the target)
+- Accident kind and accident type
+- Involvement (bicycle, car, pedestrian, motorcycle, goods vehicle, other)
+- Lighting conditions and road condition
+- Year, month, weekday, hour
+- Regional key (state, district, municipality)
+- Coordinates (ETRS89 UTM and WGS84)
 
-Ob Wetterinformationen enthalten sind, ist zu prüfen. Falls nicht, entfallen sie oder kommen später aus einer externen Quelle (nur nach Absprache).
+Whether weather information is included needs to be checked. If not, it is dropped or comes later from an external source (only after agreement).
 
-**OpenStreetMap (Kontext).** Je Unfallpunkt: Straßenklasse (`highway`), Höchstgeschwindigkeit, Fahrstreifen, Knotennähe und Knotentyp, Radinfrastruktur, Nähe zu Schulen, Haltestellen, Gastronomie, Landnutzung, urbane Dichte. Vorgehen: Extrakt als `.osm.pbf` laden, Straßen und Punkte-von-Interesse extrahieren, per räumlichem Join (nächste Kante mit Maximalabstand bzw. Pufferaggregation) an die Unfälle hängen.
+So that all data is stored in the same way, the following structure should be used:
 
-**Lizenz und Datenschutz.** Vor dem Zugriff die Datennutzungsvereinbarung des Kurses erledigen und die Lizenzbedingungen von Unfallatlas (Namensnennung) und OSM (ODbL, Attribution) in die Abgabe aufnehmen. Rohdaten gehören nicht ins Git-Repository.
+```
+.
+├── bayern-latest.osm.pbf
+├── csv2016
+│   ├── Unfallorte_2016_LinRef.csv
+│   └── schema.ini
+├── csv2017
+│   ├── Unfallorte2017_LinRef.csv
+│   └── schema.ini
+├── csv2018
+│   ├── Unfallorte2018_LinRef.csv
+│   └── schema.ini
+├── csv2019
+│   ├── Unfallorte2019_LinRef.csv
+│   └── schema.ini
+├── csv2020
+│   ├── Unfallorte2020_LinRef.csv
+│   └── schema.ini
+├── csv2021
+│   ├── Unfallorte_2021_LinRef.csv
+│   └── schema.ini
+├── csv2022
+│   └── Unfallorte2022_LinRef.csv
+├── csv2023
+│   ├── Unfallorte2023_LinRef.csv
+│   └── schema.ini
+├── csv2024
+│   ├── Unfallorte2024_LinRef.csv
+│   └── schema.ini
+├── csv2025
+│   ├── Unfallorte_2025_LR_BasisDLM.csv
+│   └── schema.ini
+└── out
+```
 
-## 4. Methodik und Fallstricke
+**OpenStreetMap (context).** Per crash point: road class (`highway`), maximum speed, lanes, junction proximity and junction type, cycling infrastructure, proximity to schools, public transport stops, gastronomy, land use, urban density. Approach: load the extract as `.osm.pbf`, extract roads and points of interest, and attach them to the crashes via a spatial join (nearest edge with a maximum distance, or buffer aggregation).
 
-1. **Target sauber definieren** und Klassenverteilung dokumentieren.
-2. **Leakage-Audit:** Jede Spalte bekommt einen Eintrag "bekannt zum Vorhersagezeitpunkt: ja oder nein" mit Begründung. Spalten, die die Schwere direkt oder indirekt verraten, fliegen raus.
-3. **Split passend zur Aussage:** Wenn das Modell auf unbekannten Orten oder Zeiträumen funktionieren soll, trennen wir räumlich (z. B. nach Kreisen oder Rasterzellen, `GroupKFold`) oder zeitlich (frühere Jahre trainieren, letztes Jahr testen). Ein zufälliger Zeilen-Split ist höchstens ein Vergleichswert, weil räumlich benachbarte Unfälle voneinander abhängen.
-4. **Preprocessing nur auf Trainingsdaten fitten** (Pipelines in scikit-learn), einschließlich Encoder und Imputer.
-5. **Umgang mit Klassenungleichgewicht:** Klassengewichte, Schwellenwert-Tuning auf Validierungsdaten, optional Resampling innerhalb der Cross-Validation. Accuracy wird nur der Vollständigkeit halber berichtet. Ein Modell, das immer "nicht schwer" sagt, erreicht bei 95 zu 5 eine Accuracy von 95 % bei 0 % Recall für "schwer".
-6. **Modellvergleich:** Mehrheitsklasse, Logistic Regression, Random Forest, XGBoost, jeweils mit gleicher Evaluationsmethodik und moderatem Hyperparameter-Tuning.
-7. **Fehleranalyse:** Fehler nach Klasse, Region, Straßentyp, Tageszeit und Beteiligung aufschlüsseln.
-8. **Erklärbarkeit:** SHAP erst nach der Validierung. Globale Wichtigkeit (Summary- und Bar-Plots), Abhängigkeitsplots und ausgewählte lokale Erklärungen für richtig und falsch klassifizierte schwere Fälle. Korrelierte Merkmale und ihre Aufteilung der Erklärung benennen. Alle Ergebnisse als Modellverhalten formulieren, nicht als Ursache.
+**License and data protection.** Before accessing the data, complete the course's data usage agreement and include the license terms of the Unfallatlas (attribution) and OSM (ODbL, attribution) in the submission. Raw data does not belong in the Git repository.
 
-## 5. Vorgeschlagene Software
+## 4. Methodology and Pitfalls
 
-Wir bleiben bei einem Python-Stack, weil alles Nötige dort ausgereift ist und das Team ihn kennt.
+1. **Define the target cleanly** and document the class distribution.
+2. **Leakage audit:** Every column gets an entry "known at prediction time: yes or no" with a justification. Columns that reveal the severity directly or indirectly are dropped.
+3. **Split matching the claim:** If the model is supposed to work on unknown locations or time periods, we split spatially (e.g. by districts or grid cells, `GroupKFold`) or temporally (train on earlier years, test on the last year). A random row split is at most a point of comparison, because spatially neighboring crashes depend on each other.
+4. **Fit preprocessing only on training data** (scikit-learn pipelines), including encoders and imputers.
+5. **Handling class imbalance:** Class weights, threshold tuning on validation data, optionally resampling inside the cross-validation. Accuracy is reported only for completeness. With a 95 to 5 split, a model that always says "not severe" reaches an accuracy of 95% at 0% recall for "severe".
+6. **Model comparison:** Majority class, logistic regression, random forest, XGBoost, each with the same evaluation method and moderate hyperparameter tuning.
+7. **Error analysis:** Break down errors by class, region, road type, time of day and involvement.
+8. **Explainability:** SHAP only after validation. Global importance (summary and bar plots), dependence plots and selected local explanations for correctly and incorrectly classified severe cases. Name correlated features and how they split the explanation among them. Phrase all results as model behavior, not as cause.
 
-| Bereich                 | Vorschlag                                                                                        | Warum                                                          |
-| ----------------------- | ------------------------------------------------------------------------------------------------ | -------------------------------------------------------------- |
-| Sprache und Umgebung    | Python 3.12, `uv` für Abhängigkeiten (alternativ Nix-Flake für volle Reproduzierbarkeit)         | Schnelle, gesperrte Umgebungen, gleiche Versionen für alle     |
-| Notebooks und Skripte   | JupyterLab für Exploration, Pipeline-Code als Module in `src/`                                   | Exploration schnell, Ergebnis reproduzierbar                   |
-| Datenverarbeitung       | `pandas` (alternativ `polars`), `pyarrow` für Parquet                                            | Tabellenarbeit, schnelles Zwischenformat                       |
-| Geodaten                | `geopandas`, `shapely`, `pyproj`, `pyogrio`                                                      | Koordinatentransformation, räumliche Joins, Pufferbildung      |
-| OSM-Zugriff             | Geofabrik-Extrakt (`.osm.pbf`) mit `pyrosm` oder `osmium`; alternativ `osmnx` für kleine Gebiete | Offline, reproduzierbar, kein Rate-Limit wie bei Overpass      |
-| Optionale schwere Joins | `DuckDB` mit Spatial-Extension                                                                   | Schnell bei Millionen Zeilen, wenn `geopandas` zu langsam wird |
-| ML                      | `scikit-learn` (Pipelines, Metriken, `GroupKFold`), `xgboost`                                    | Baseline, Random Forest und Boosting mit einheitlicher API     |
-| Ungleichgewicht         | Klassengewichte in `scikit-learn`/`xgboost`, optional `imbalanced-learn`                         | Einfach erst, komplex nur bei Bedarf                           |
-| Tuning                  | `optuna` (nur falls Zeit bleibt)                                                                 | Effizienter als Gittersuche                                    |
-| Erklärbarkeit           | `shap` (`TreeExplainer`)                                                                         | Schnell für Random Forest und XGBoost                          |
-| Visualisierung          | `matplotlib`, `seaborn`, `folium` oder `kepler.gl` für Karten                                    | Plots für den Bericht, interaktive Fehlerkarten                |
-| Experiment-Tracking     | `MLflow` lokal oder eine einfache CSV pro Lauf                                                   | Läufe vergleichbar halten                                      |
-| Versionierung           | Git (GitHub oder GitLab der Hochschule), optional `DVC` für Daten                                | Rohdaten und Artefakte außerhalb von Git                       |
-| Qualität                | `pytest`, `ruff`, `pre-commit`                                                                   | Wenige Tests für Feature-Logik und Splits genügen              |
-| Bericht                 | Markdown plus Jupyter, optional Quarto oder Typst                                                | Abgabe als Notebook und Bericht                                |
+## 5. Proposed Software
 
-Sparsame Minimalvariante, falls die Zeit knapp wird: `pandas`, `geopandas`, `scikit-learn`, `xgboost`, `shap`, `matplotlib`.
+We stay with a Python stack because everything needed is mature there and the team knows it.
 
-### 5.1 Entwicklungsumgebung (Nix und devenv)
+| Area                     | Proposal                                                                                        | Why                                                          |
+| ------------------------ | ----------------------------------------------------------------------------------------------- | ------------------------------------------------------------ |
+| Language and environment | Python 3.12, `uv` for dependencies (alternatively a Nix flake for full reproducibility)         | Fast, locked environments, same versions for everyone        |
+| Notebooks and scripts    | JupyterLab for exploration, pipeline code as modules in `src/`                                  | Exploration is quick, the result is reproducible             |
+| Data processing          | `pandas` (alternatively `polars`), `pyarrow` for Parquet                                        | Table work, fast intermediate format                         |
+| Geodata                  | `geopandas`, `shapely`, `pyproj`, `pyogrio`                                                     | Coordinate transformation, spatial joins, buffering          |
+| OSM access               | Geofabrik extract (`.osm.pbf`) with `pyrosm` or `osmium`; alternatively `osmnx` for small areas | Offline, reproducible, no rate limit as with Overpass        |
+| Optional heavy joins     | `DuckDB` with the spatial extension                                                             | Fast with millions of rows when `geopandas` becomes too slow |
+| ML                       | `scikit-learn` (pipelines, metrics, `GroupKFold`), `xgboost`                                    | Baseline, random forest and boosting with a uniform API      |
+| Imbalance                | Class weights in `scikit-learn`/`xgboost`, optionally `imbalanced-learn`                        | Simple first, complex only if needed                         |
+| Tuning                   | `optuna` (only if time remains)                                                                 | More efficient than grid search                              |
+| Explainability           | `shap` (`TreeExplainer`)                                                                        | Fast for random forest and XGBoost                           |
+| Visualization            | `matplotlib`, `seaborn`, `folium` or `kepler.gl` for maps                                       | Plots for the report, interactive error maps                 |
+| Experiment tracking      | `MLflow` locally or a simple CSV per run                                                        | Keep runs comparable                                         |
+| Versioning               | Git (GitHub or the university's GitLab), optionally `DVC` for data                              | Raw data and artifacts outside of Git                        |
+| Quality                  | `pytest`, `ruff`, `pre-commit`                                                                  | A few tests for feature logic and splits are enough          |
+| Report                   | Markdown plus Jupyter, optionally Quarto or Typst                                               | Submission as notebook and report                            |
 
-Nix ist ein Paketmanager, der Software reproduzierbar und isoliert vom restlichen System installiert, und devenv beschreibt darauf aufbauend in `devenv.nix`, welche Programme und Python-Pakete für dieses Projekt bereitstehen. Dadurch arbeiten alle im Team mit exakt derselben Umgebung, und ein Befehl reicht für das komplette Setup.
+Lean minimal variant if time runs short: `pandas`, `geopandas`, `scikit-learn`, `xgboost`, `shap`, `matplotlib`.
 
-#### 5.1.1 Einmalig einrichten
+### 5.1 Development Environment (Nix and devenv)
 
-1. Nix installieren (unter Windows über WSL2):
+Nix is a package manager that installs software reproducibly and isolated from the rest of the system, and devenv builds on it and describes in `devenv.nix` which programs and Python packages are available for this project. This way everyone on the team works in exactly the same environment, and one command is enough for the complete setup.
+
+#### 5.1.1 One-time setup
+
+1. Install Nix (on Windows via WSL2):
 
 ```bash
    curl --proto '=https' --tlsv1.2 -sSf -L https://install.determinate.systems/nix | sh -s -- install
 ```
 
-2. devenv installieren:
+2. Install devenv:
 
 ```bash
    nix profile install nixpkgs#devenv
 ```
 
-3. Optional: `direnv` installieren, damit die Umgebung beim Betreten des Ordners automatisch geladen wird.
+3. Optional: Install `direnv` so that the environment is loaded automatically when you enter the folder.
 
-#### 5.1.2 Starten
+#### 5.1.2 Starting
 
 ```bash
 git clone git@github.com:leo248/dis-p2-crash-severity.git
 cd dis-p2-crash-severity
-direnv allow      # mit direnv
-devenv shell      # alternativ ohne direnv
+direnv allow      # with direnv
+devenv shell      # alternatively without direnv
 ```
 
-Der erste Start dauert einige Minuten, weil alle Pakete geladen werden. Danach geht es aus dem Cache deutlich schneller.
+The first start takes a few minutes because all packages are downloaded. After that it is much faster thanks to the cache.
 
-#### 5.1.3 Befehle in der Umgebung
+#### 5.1.3 Commands in the environment
 
-- `lab` startet JupyterLab.
-- `check` führt ruff und pytest aus.
-- `devenv update` aktualisiert die Paketstände. Nur nach Absprache ausführen und danach `devenv.lock` committen.
+- `lab` starts JupyterLab.
+- `check` runs ruff and pytest.
+- `devenv update` updates the package versions. Run it only after agreement and commit `devenv.lock` afterwards.
 
 ## 6. Roadmap
 
-Wochenangaben sind relativ. Die echten Termine tragen wir nach den Ankündigungen auf ELO ein. Die Meilensteine M1 bis M5 stammen aus der Vorlesung.
+Week figures are relative. We enter the real dates after the announcements on ELO. The milestones M1 to M5 come from the lecture.
 
-| Phase              | Zeitraum (ca.)  | Inhalt                                                                                          | Ergebnis                                                  |
-| ------------------ | --------------- | ----------------------------------------------------------------------------------------------- | --------------------------------------------------------- |
-| Setup              | Woche 1         | Repo, Umgebung, Datennutzungsvereinbarung, Rollen, Meetingrhythmus                              | Lauffähiges Grundgerüst, unterschriebene Vereinbarung     |
-| **M1 Scope**       | Woche 1 bis 2   | Business-Understanding-Brief nach den vier Aufgaben, erste Erfolgskriterien, Literaturüberblick | Brief als Entwurf zum ersten Betreuertreffen              |
-| Data Understanding | Woche 2 bis 3   | Unfallatlas laden, Spaltenaudit, Klassenverteilung, Datenqualität, Leakage-Liste                | Dateninventar und Qualitätsbericht                        |
-| **M2 Machbarkeit** | Woche 3         | Genügend schwere Fälle? Join-Qualität testen (Pilotregion, z. B. ein Bundesland)                | Entscheidung: binär oder mehrklassig, Region und Zeitraum |
-| Data Preparation   | Woche 3 bis 5   | OSM-Extrakt, Spatial Join, Feature Engineering, Split-Design                                    | Reproduzierbare Feature-Pipeline, Parquet-Datensatz       |
-| **M3 Baseline**    | Woche 5 bis 6   | Mehrheitsklasse und Logistic Regression, erste Metriken                                         | Baseline-Ergebnisse mit Konfusionsmatrix                  |
-| Modellierung       | Woche 6 bis 8   | Random Forest, XGBoost, Klassengewichte, Schwellenwert, moderates Tuning                        | Modellvergleich auf einheitlichem Testsetting             |
-| **M4 Evaluation**  | Woche 8 bis 9   | Fehleranalyse nach Gruppen, Robustheit (anderer Zeitraum oder Region), Join-Sensitivität        | Klassenweiser Fehlerbericht mit Grenzen                   |
-| Erklärbarkeit      | Woche 9 bis 10  | SHAP global und lokal, Plausibilitätsprüfung, saubere Formulierung ohne Kausalität              | Erklärungskapitel mit Abbildungen                         |
-| **M5 Handover**    | Woche 10 bis 12 | Bericht, Notebook oder Workflow, Präsentation, Aufräumen, Review                                | Abgabefertiges Paket                                      |
-| Puffer             | laufend         | Zeit für Iteration, wenn Daten den Scope verändern                                              | Dokumentierte Scope-Änderungen                            |
+| Phase              | Period (approx.) | Content                                                                                            | Result                                              |
+| ------------------ | ---------------- | -------------------------------------------------------------------------------------------------- | --------------------------------------------------- |
+| Setup              | Week 1           | Repo, environment, data usage agreement, roles, meeting rhythm                                     | Working skeleton, signed agreement                  |
+| **M1 Scope**       | Weeks 1 to 2     | Business understanding brief following the four tasks, first success criteria, literature overview | Draft of the brief for the first supervisor meeting |
+| Data Understanding | Weeks 2 to 3     | Load the Unfallatlas, column audit, class distribution, data quality, leakage list                 | Data inventory and quality report                   |
+| **M2 Feasibility** | Week 3           | Enough severe cases? Test the join quality (pilot region, e.g. one federal state)                  | Decision: binary or multi-class, region and period  |
+| Data Preparation   | Weeks 3 to 5     | OSM extract, spatial join, feature engineering, split design                                       | Reproducible feature pipeline, Parquet dataset      |
+| **M3 Baseline**    | Weeks 5 to 6     | Majority class and logistic regression, first metrics                                              | Baseline results with confusion matrix              |
+| Modeling           | Weeks 6 to 8     | Random forest, XGBoost, class weights, threshold, moderate tuning                                  | Model comparison on a uniform test setting          |
+| **M4 Evaluation**  | Weeks 8 to 9     | Error analysis by group, robustness (other period or region), join sensitivity                     | Class-wise error report with limitations            |
+| Explainability     | Weeks 9 to 10    | SHAP global and local, plausibility check, clean wording without causality                         | Explanation chapter with figures                    |
+| **M5 Handover**    | Weeks 10 to 12   | Report, notebook or workflow, presentation, cleanup, review                                        | Submission-ready package                            |
+| Buffer             | ongoing          | Time for iteration when the data changes the scope                                                 | Documented scope changes                            |
 
-Review-Punkte: nach M2 (Scope kann sich ändern), nach M4 (Ergebnisse stehen) und eine Woche vor Abgabe.
+Review points: after M2 (scope may change), after M4 (results are in) and one week before submission.
 
-### Rollenvorschlag (Platzhalter)
+### Suggested roles (placeholder)
 
-- Daten und OSM-Join: \_\_\_
-- Modellierung und Tuning: \_\_\_
-- Evaluation und Fehleranalyse: \_\_\_
-- Erklärbarkeit und Visualisierung: \_\_\_
-- Dokumentation und Koordination: \_\_\_
+- Data and OSM join: \_\_\_
+- Modeling and tuning: \_\_\_
+- Evaluation and error analysis: \_\_\_
+- Explainability and visualization: \_\_\_
+- Documentation and coordination: \_\_\_ all together
 
-Rollen rotieren bei Bedarf. Jede Person ist für mindestens ein Deliverable verantwortlich.
+Roles rotate as needed. Each person is responsible for at least one deliverable.
 
-### Meetingroutine
+### Meeting routine
 
-Vor dem Meeting teilen wir die aktuelle Frage, ein Ergebnis und ein Hindernis. Im Meeting besprechen wir Evidenz und vereinbaren die nächste machbare Aufgabe. Danach halten wir Entscheidung, Verantwortliche und erwartetes Ergebnis fest.
+Before the meeting we share the current question, one result and one obstacle. In the meeting we discuss evidence and agree on the next feasible task. Afterwards we record the decision, who is responsible and the expected result. Once a week on Wednesdays
 
-## 7. Repository-Struktur (Vorschlag)
+## 7. Repository Structure (proposal)
 
 ```
 .
 ├── README.md
 ├── pyproject.toml
-├── data/            # nicht in Git; raw/, interim/, processed/
-├── notebooks/       # Exploration, nummeriert
+├── data/            # not in Git; raw/, interim/, processed/
+├── notebooks/       # exploration, numbered
 ├── src/
-│   ├── data/        # Laden, Bereinigen, Leakage-Filter
-│   ├── features/    # OSM-Join, Feature Engineering
-│   ├── models/      # Training, Evaluation, Splits
-│   └── explain/     # SHAP-Auswertung
-├── reports/         # Abbildungen, Tabellen, Bericht
-├── docs/            # Brief, Feature-Audit, Entscheidungslog
+│   ├── data/        # loading, cleaning, leakage filter
+│   ├── features/    # OSM join, feature engineering
+│   ├── models/      # training, evaluation, splits
+│   └── explain/     # SHAP analysis
+├── reports/         # figures, tables, report
+├── docs/            # brief, feature audit, decision log
 └── tests/
 ```
 
 ## 8. Deliverables
 
-- Business-Understanding-Brief
-- Dataninventar, Leakage-Audit und Qualitätsbericht
-- Reproduzierbare Pipeline (Notebook oder Workflow)
-- Reproduzierbarer Modellvergleich mit klassenweisem Fehlerbericht
-- SHAP-Auswertung mit qualifizierten Erklärungen
-- Abschlussbericht und Präsentation
+- Business understanding brief
+- Data inventory, leakage audit and quality report
+- Reproducible pipeline (notebook or workflow)
+- Reproducible model comparison with class-wise error report
+- SHAP analysis with qualified explanations
+- Final report and presentation
 
-## 9. Offene Fragen für das erste Betreuertreffen
+## 9. Open Questions for the First Supervisor Meeting
 
-1. Welche Jahrgänge und welche Region sollen wir verwenden?
-2. Welches Target ist gewünscht, binär oder mehrklassig?
-3. Gibt es Vorgaben für Metriken und Zielwerte?
-4. Ist ein externer Wetterdatensatz erlaubt?
-5. Welche Abgabeformate und Termine gelten?
+1. Which years and which region should we use?
+2. Which target is wanted, binary or multi-class?
+3. Are there requirements for metrics and target values?
+4. Is an external weather dataset allowed?
+5. Which submission formats and deadlines apply?

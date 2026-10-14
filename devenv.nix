@@ -14,6 +14,7 @@
         scipy
         pyarrow
         duckdb
+        osmium
 
         # Geodaten
         geopandas
