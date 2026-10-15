@@ -63,41 +63,10 @@ See section 6 (Roadmap) and section 5 (Software).
 
 Whether weather information is included needs to be checked. If not, it is dropped or comes later from an external source (only after agreement).
 
-So that all data is stored in the same way, the following structure should be used:
+To create the dataset run:
 
-```
-.
-├── bayern-latest.osm.pbf
-├── csv2016
-│   ├── Unfallorte_2016_LinRef.csv
-│   └── schema.ini
-├── csv2017
-│   ├── Unfallorte2017_LinRef.csv
-│   └── schema.ini
-├── csv2018
-│   ├── Unfallorte2018_LinRef.csv
-│   └── schema.ini
-├── csv2019
-│   ├── Unfallorte2019_LinRef.csv
-│   └── schema.ini
-├── csv2020
-│   ├── Unfallorte2020_LinRef.csv
-│   └── schema.ini
-├── csv2021
-│   ├── Unfallorte_2021_LinRef.csv
-│   └── schema.ini
-├── csv2022
-│   └── Unfallorte2022_LinRef.csv
-├── csv2023
-│   ├── Unfallorte2023_LinRef.csv
-│   └── schema.ini
-├── csv2024
-│   ├── Unfallorte2024_LinRef.csv
-│   └── schema.ini
-├── csv2025
-│   ├── Unfallorte_2025_LR_BasisDLM.csv
-│   └── schema.ini
-└── out
+```python
+    python3 src/data/data_fetcher.py
 ```
 
 **OpenStreetMap (context).** Per crash point: road class (`highway`), maximum speed, lanes, junction proximity and junction type, cycling infrastructure, proximity to schools, public transport stops, gastronomy, land use, urban density. Approach: load the extract as `.osm.pbf`, extract roads and points of interest, and attach them to the crashes via a spatial join (nearest edge with a maximum distance, or buffer aggregation).

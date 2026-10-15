@@ -15,6 +15,7 @@
         pyarrow
         duckdb
         osmium
+        wget
 
         # Geodaten
         geopandas
@@ -48,12 +49,14 @@
         tqdm
         pyyaml
         requests
+        python-dotenv
       ]
   );
 in {
   # https://devenv.sh/basics/
   env.PROJECT = "dis-p2-crash-severity";
   env.DATA_DIR = "${config.devenv.root}/data";
+  env.YEARS = "2020 2021 2022 2023 2024 2025";
 
   # https://devenv.sh/packages/
   packages = with pkgs; [
